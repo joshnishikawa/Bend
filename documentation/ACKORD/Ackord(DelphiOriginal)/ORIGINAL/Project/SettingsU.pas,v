@@ -1,0 +1,184 @@
+head	1.1;
+branch	1.1.1;
+access;
+symbols
+	start:1.1.1.1
+	originalvendor:1.1.1;
+locks; strict;
+comment	@ * @;
+
+
+1.1
+date	2004.10.19.04.59.06;	author diwic3;	state Exp;
+branches
+	1.1.1.1;
+next	;
+
+1.1.1.1
+date	2004.10.19.04.59.06;	author diwic3;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@unit SettingsU;
+
+{
+This file is part of the program "Ackord", originally written by David Henningsson.
+
+    Ackord is free software; you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation; either version 2 of the License, or
+    (at your option) any later version.
+
+    Ackord is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with Ackord; if not, write to the Free Software
+    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+}
+
+interface
+
+uses
+  Windows, Messages, SysUtils, Variants, Classes, Graphics, Controls, Forms,
+  Dialogs, StdCtrls, Mmsystem, inifiles, CheckLst;
+
+type
+  TSettingsF = class(TForm)
+    OkBtn: TButton;
+    CancelBtn: TButton;
+    MidiInputsLB: TCheckListBox;
+    Label1: TLabel;
+    IgnoreSustainCB: TCheckBox;
+    Label2: TLabel;
+    MidiThruLB: TCheckListBox;
+    procedure FormCreate(Sender: TObject);
+    procedure OkBtnClick(Sender: TObject);
+    procedure CancelBtnClick(Sender: TObject);
+    procedure MidiThruLBClickCheck(Sender: TObject);
+  private
+    { Private declarations }
+  public
+    { Public declarations }
+    Function LoadFromInifile: Boolean;
+  end;
+
+var
+  SettingsF: TSettingsF;
+
+implementation
+
+{$R *.dfm}
+
+procedure TSettingsF.FormCreate(Sender: TObject);
+var I,J:Integer;
+    C:TMidiInCaps;
+    C2:TMidiOutCaps;
+begin
+  // Find info about midi inputs and put into the checklistbox
+  For I := 0 to midiInGetNumDevs-1 do begin
+    J := midiInGetDevCaps(I, @@C, sizeof(C));
+    if J <> MMSYSERR_NOERROR then
+      MidiInputsLB.Items.Add('Unknown port - error '+IntToStr(J))
+    else
+      MidiInputsLB.Items.Add(Trim(C.szPname));
+    MidiInputsLB.Checked[I] := True;
+  end;
+
+  // Find info about midi outputs and put into the thru checklistbox
+  For I := 0 to midiOutGetNumDevs-1 do begin
+    J := midiOutGetDevCaps(I, @@C2, sizeof(C2));
+    if J <> MMSYSERR_NOERROR then
+      MidiThruLB.Items.Add('Unknown port - error '+IntToStr(J))
+    else
+      MidiThruLB.Items.Add(Trim(C2.szPname));
+    MidiThruLB.Checked[I] := False;
+  end;
+
+end;
+
+Function TSettingsF.LoadFromInifile: Boolean;
+var S:String;
+    I:Integer;
+begin
+  Result := False;
+  S := ExtractFilePath(Application.ExeName)+'ackord1.ini';
+  if not FileExists(S) then Exit;
+  with TMemInifile.Create(S) do try
+    For I := 0 to MidiInputsLB.Items.Count-1 do
+      MidiInputsLB.Checked[I] := ReadBool('MidiInputs', IntToStr(I), True);
+    For I := 0 to MidiThruLB.Items.Count-1 do
+      MidiThruLB.Checked[I] := ReadBool('MidiThru', IntToStr(I), False);
+    IgnoreSustainCB.Checked := ReadBool('Pedal','IgnoreSustain', False);
+
+    MidiThruLBClickCheck(nil); // Update enabled/disabled on midi thru
+  finally
+    Free;
+  end;
+  Result := True;
+end;
+
+
+procedure TSettingsF.OkBtnClick(Sender: TObject);
+var I:Integer;
+begin
+  // Save settings to ini-file
+  with TMemInifile.Create(ExtractFilePath(Application.ExeName)+'ackord1.ini') do try
+    For I := 0 to MidiInputsLB.Items.Count-1 do
+      WriteBool('MidiInputs', IntToStr(I), MidiInputsLB.Checked[I]);
+    For I := 0 to MidiThruLB.Items.Count-1 do
+      WriteBool('MidiThru', IntToStr(I), MidiThruLB.Checked[I]);
+    WriteBool('Pedal','IgnoreSustain', IgnoreSustainCB.Checked);
+    UpdateFile;
+  finally
+    Free;
+  end;
+
+end;
+
+procedure TSettingsF.CancelBtnClick(Sender: TObject);
+begin
+  LoadFromInifile;
+end;
+
+procedure TSettingsF.MidiThruLBClickCheck(Sender: TObject);
+var I,J:Integer;
+begin
+  // Due to a limitation in windows, we can only have one midi thru at a time.
+  // That's why the rest of them must be disabled.
+
+  // See if at least one is checked
+  J := 0;
+  For I := 0 to MidiThruLB.Items.Count-1 do
+    if MidiThruLB.Checked[I] then Inc(J);
+
+  // Now enable or disable 
+  For I := 0 to MidiThruLB.Items.Count-1 do
+    MidiThruLB.ItemEnabled[I] := MidiThruLB.Checked[I] or (J = 0);
+
+  // The controls seems to need redrawing to update properly.
+  MidiThruLB.Invalidate;
+end;
+
+end.
+@
+
+
+1.1.1.1
+log
+@Initial checkin
+@
+text
+@@

@@ -1,0 +1,269 @@
+head	1.2;
+access;
+symbols;
+locks; strict;
+comment	@# @;
+
+
+1.2
+date	2004.11.08.19.22.56;	author diwic3;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2004.11.06.21.22.04;	author diwic3;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+1.2
+log
+@Chords now in alphabetic order + more chords added
+@
+text
+@; This is the chord definition file.
+; Here you make up which key combinations make up which chord.
+; Do it for key C, and the program will automatically transpose 
+; it to all other keys. 
+; If a / (division sign) is after the note name, that means it is okay to
+; have this note in the base - e g C/G. If not, it will be an 
+; unrecognized chord - unless another row later has this combination.
+
+; Every line not beginning with "C" will be ignored by the program.
+; Separate notes with , (comma). No spaces between notes. 
+; Valid notenames: C, C#, Db, D, D#, Eb, E, F, F#, Gb, G, G#, Ab, A, A#, Bb, B
+
+C = C/,E/,G/
+C = C,E,G,B/
+C = C,E,G,Bb/
+C = C,E,G,F#/
+C = C,E,G,F/
+C = C,E,G,Eb/
+C = C,E,G,C#/
+C add11 = C/,E,F,G
+C b5 = C/,E,Gb
+C+ = C/,E,G#
+C11 = C/,Bb,D,F
+C11 add#5 = C/,F#,Bb,D,F
+C11 = C/,G,Bb,D,F
+C11 add13 = C/,Bb,D,F,A
+C11 b9 add13 = C/,Bb,Db,F,A
+C13 = C/,Bb,D,E,A
+C13 = C/,Bb,E,A
+C13 = C/,G,Bb,D,E,A
+C13 = C/,G,Bb,E,A
+C13 add11 = C/,E,Bb,D,F,A
+C13#11 = C/,E,Bb,D,F#,A
+C13#11 = C/,E,G,Bb,D,F#,A
+C13#11 no3 = C/,Bb,D,F#,A
+C13#11 no3 = C/,G,Bb,D,F#,A
+C13#9 = C/,E,Bb,D#,A
+C13#9 = C/,E,G,Bb,D#,A
+C13b9 = C/,E,Bb,Db,A
+C13b9 = C/,E,G,Bb,Db,A
+C2 = C/,D,G
+C6 = C/,E,G,A
+C6 no3 = C/,G,A
+C6 9 = C/,E,G,A,D
+C6 9 no3 = C/,G,A,D
+C7 = C/,E,Bb
+C7 = C/,E/,G/,Bb
+C7 no3 = C/,G,Bb
+C7 alt = C/,E,Bb,Db,D#
+C7 alt = C/,E,G,Bb,Db,D#
+C7 alt = C/,E,Gb,Bb,Db,D#
+C7 alt = C/,E,G#,Bb,Db,D#
+C7 alt = C/,E,Gb,G#,Bb,Db,D#
+C7 alt = C/,E,Gb,G#,Bb,Db
+C7 alt = C/,E,Gb,G#,Bb,D#
+C7 alt = C/,E,Gb,G#,Bb
+C7#5 = C/,E,G#,Bb
+C7#5#9 = C/,E,G#,Bb,D#
+C7#5b9 = C/,E,G#,Bb,Db
+C7#9 = C/,E,Bb,D#
+C7#9 = C/,E,G,Bb,D#
+C7b13 = C/,E,G,Bb,Ab
+C7b5 = C/,E,Gb,Bb
+C7b5b13 = C/,E,Gb,Bb,Ab
+C7b5#9 = C/,E,Gb,Bb,D#
+C7b5b9 = C/,E,Gb,Bb,Db
+C7b9 = C/,E,Bb,Db
+C7b9 = C/,E,G,Bb,Db
+C7b9b13 = C/,E,Bb,Db,Ab
+C9 = C/,E,Bb,D
+C9 = C/,E,G,Bb,D
+C9 = C/,G,Bb,D
+C9b13 = C/,E,Bb,D,Ab
+C9b13 = C/,E,G,Bb,D,Ab
+C9b13 = C/,G,Bb,D,Ab
+C9#11 = C/,E,Bb,D,F#
+C9#11 = C/,E,G,Bb,D,F#
+C9#11 no3 = C/,Bb,D,F#
+C9#11 no3 = C/,G,Bb,D,F#
+C9#5 = C/,E,G#,Bb,D
+C9b5 = C/,E,Gb,Bb,D
+Cadd9 = C/,D,E/,G/
+Cadd9 no5 = C/,D,E
+Cdim = C/,Eb,Gb,A
+Cm = C,Eb,G,Bb/
+Cm = C/,Eb/,G/
+Cm = C,Eb,G,B/
+Cm = C,Eb,G,F#/
+Cm = C,Eb,G,E/
+Cm = C,Eb,G,Db/
+Cm add11 = C/,Eb,F,G
+Cm add9 = C/,D,Eb,G
+Cm add9 no5 = C/,D,Eb
+Cm b5 = C/,Eb,Gb
+Cm b5 add11 = C/,Eb,F,Gb
+Cm maj7 = C/,Eb,G/,B/
+Cm maj7 no5 = C/,Eb,B
+Cm no5 add11 = C/,Eb,F
+Cm11 = C/,Eb,Bb,D,F
+Cm11 = C/,Eb,G,Bb,D,F
+Cm13 = C/,Eb,G,Bb,D,A
+Cm13 = C/,Eb,G,Bb,D,F,A
+Cm6 = C/,Eb,G,A
+Cm6 9 = C/,Eb,G,A,D
+Cm6 no5 = C/,Eb,A
+Cm7 = C/,Eb,G/,Bb
+Cm7 add11 = C/,Eb,G,Bb,F
+Cm7 add11 no5 = C/,Eb,F,Bb
+Cm7 no5 = C/,Eb,Bb
+Cm7#5#9 = C/,Eb,G#,Bb,D#
+Cm7#5b9 = C/,Eb,G#,Bb,Db
+Cm7b5 = C/,Eb,Gb/,Bb
+Cm7b5#9 = C/,Eb,Gb,Bb,D#
+Cm7b5b9 = C/,Eb,Gb,Bb,Db
+Cm9 = C/,Eb,Bb,D
+Cm9 = C/,Eb,G,Bb,D
+Cm9 no3 = C/,G,Bb,D
+Cm9#11 = C/,Eb,Bb,D,F#
+Cm9#11 = C/,Eb,G,Bb,D,F#
+Cm9#5 = C/,Eb,G#,Bb,D
+Cm9b5 = C/,Eb,Gb,Bb,D
+Cmaj13 = C/,B,D,E,A
+Cmaj13 = C/,B,E,A
+Cmaj13 = C/,G,B,D,E,A
+Cmaj13 = C/,G,B,E,A
+Cmaj7 #11 = C/,E,G,B,F#
+Cmaj7 #11 = C/,E,B,F#
+Cmaj7 #5 = C/,E,G#,B
+Cmaj7 b5 = C/,E,Gb,B
+Cmaj7 = C/,E/,G/,B
+Cmaj7 no3 = C/,G,B
+Cmaj7 no5 = C/,E,B
+Cmaj9 = C/,E,G,B,D
+Cno3 = C/,G/
+Csus = C/,F,G/
+Csus maj7 = C/,F,G,B
+Csus7 = C/,F,G,Bb
+Csus7b9 = C/,F,G,Bb,Db
+Csus7b9 = C/,F,Bb,Db
+@
+
+
+1.1
+log
+@Chord analyzer 0.3 - uses text file with chord definitions
+@
+text
+@d14 8
+a21 27
+Cm = C/,Eb/,G/
+C7 = C/,E/,G/,Bb
+Cm7 = C/,Eb,G/,Bb
+C6 = C/,E,G,A
+Csus = C/,F,G/
+C2 = C/,D,G
+Cmb5 = C/,Eb,Gb
+Cb5 = C/,E,Gb
+Cdim = C/,Eb,Gb,A
+Cmaj7 = C/,E/,G/,B
+Cm maj7 = C/,Eb,G/,B
+Cmaj9 = C/,E,G,B,D
+C13 add11 = C/,E,Bb,D,F
+C 6 9 = C/,E,G,A,D
+C 6 9 no3 = C/,G,A,D
+Cm7 add11 = C/,Eb,G,Bb,F
+C11 add5  = C/,G,Bb,D,F
+Cm7b5 = C/,Eb,Gb/,Bb
+Cm6 = C/,Eb,G,A
+C6 no3 = C/,G,A
+Cm7 no5 = C/,Eb,Bb
+C7 no3 = C/,G,Bb
+C7 = C/,E,Bb
+Cm no5 add11 = C/,Eb,F
+Csus7 = C/,F,G,Bb
+Cm7 add11 no5 = C/,Eb,F,Bb
+Cno3 = C/,G/
+a22 3
+Cadd9 = C/,D,E/,G/
+Cadd9 no5 = C/,D,E
+Cm add9 no5 = C/,D,Eb
+d24 5
+a28 29
+C9 = C/,E,G,Bb,D
+C9 = C/,E,Bb,D
+C11 add #5 = C/,F#,Bb,D,F
+Cm9 = C/,Eb,G,Bb,D
+Cm9 = C/,Eb,Bb,D
+Cm11 = C/,Eb,Bb,D,F
+Cm11 = C/,Eb,G,Bb,D,F
+Cm6 9 = C/,Eb,G,A,D
+Cm add9 = C/,D,Eb,G
+C7b9 = C/,E,Bb,Db
+C7b9 = C/,E,G,Bb,Db
+C7#9 = C/,E,Bb,D#
+C7#9 = C/,E,G,Bb,D#
+C7b5 = C/,E,Gb,Bb
+C7#5 = C/,E,G#,Bb
+C9 #11 no3 = C/,G,Bb,D,F#
+C9 #11 no3 = C/,Bb,D,F#
+C7#5#9 = C/,E,G#,Bb,D#
+C9#5 = C/,E,G#,Bb,D
+C7#5b9 = C/,E,G#,Bb,Db
+C7b5#9 = C/,E,Gb,Bb,D#
+C9b5 = C/,E,Gb,Bb,D
+C7b5b9 = C/,E,Gb,Bb,Db
+Cm7#5#9 = C/,Eb,G#,Bb,D#
+Cm9#5 = C/,Eb,G#,Bb,D
+Cm7#5b9 = C/,Eb,G#,Bb,Db
+Cm7b5#9 = C/,Eb,Gb,Bb,D#
+Cm9b5 = C/,Eb,Gb,Bb,D
+Cm7b5b9 = C/,Eb,Gb,Bb,Db
+d30 1
+a30 1
+C13 = C/,Bb,D,E,A
+d32 1
+a32 5
+C13 = C/,G,Bb,D,E,A
+Cmaj13 = C/,B,E,A
+Cmaj13 = C/,B,D,E,A
+Cmaj13 = C/,G,B,E,A
+Cmaj13 = C/,G,B,D,E,A
+d41 35
+d78 13
+a90 3
+Cm9#11 = C/,Eb,Bb,D,F#
+Cm9#11 = C/,Eb,G,Bb,D,F#
+C add11 = C/,E,F,G
+d92 3
+d96 1
+a96 1
+Cmaj7 no5 = C/,E,B
+d98 33
+d132 4
+d137 3
+a139 5
+Cmaj7 #11 = C/,E,G,B,F#
+C = C,E,G,F/
+C = C,E,G,Bb/
+Cm = C,Eb,G,Bb/
+
+@
+

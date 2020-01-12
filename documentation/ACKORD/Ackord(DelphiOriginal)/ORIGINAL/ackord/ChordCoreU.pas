@@ -1,0 +1,258 @@
+unit ChordCoreU;
+{
+This file is part of the program "Ackord", originally written by David Henningsson.
+
+    Ackord is free software; you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation; either version 2 of the License, or
+    (at your option) any later version.
+
+    Ackord is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with Ackord; if not, write to the Free Software
+    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+}
+
+interface
+
+uses Sysutils, Classes;
+
+{
+  TChordAnalyzer - contains the core of analyzing.
+
+  You write stuff to it by setting IsPressed (index 0-127, for midi note),
+  and get the resulting chord from ChordString.
+}
+
+const
+  NoteKindSize = 12;
+
+type
+  NoteKind = 0..NoteKindSize-1; // 0 = C, 1 = C#, 2 = D etc
+  NoteKindSet = set of NoteKind;
+  MidiNoteRange = 0..127;
+
+const
+  NoteNames: Array[NoteKind] of String =
+    ('C','C#','D','Eb','E','F','F#','G','Ab','A','Bb','B');
+
+
+type
+  TChordAnalyzer = class(TComponent)
+  private
+    // This array contains a "compiled" set of chord definitions, made from a chord definition file.
+    ChordDefinitions: Array of record
+      C:NoteKindSet; // Contains the definition
+      Name: String; // Contains the name of the chord
+      BaseRelation: NoteKind; // The relation to the base note. Normally 0, but can be e g 4 for C/E.
+    end;
+    // Contains the array of which notes are currently pressed
+    FIsPressed: Array[MidiNoteRange] of Integer;
+    // Set to True if we have to recalculate the chord.
+    FChanged: Boolean;
+    FRecognizedChord: Boolean;
+    FNotesPressed: Integer;
+    FChordString: String;
+    function GetIsPressed(Index: MidiNoteRange): Boolean;
+    Procedure SetIsPressed(Index: MidiNoteRange; Value: Boolean);
+    function GetChordString: String;
+    function GetNotesPressed: Integer;
+    function GetRecognizedChord: Boolean;
+    Procedure DoAnalyze;
+  public
+    // Set whether a note is pressed or not. Obs: if a note is set to true twice, it needs to be set to false twice to really be false.
+    property IsPressed[Note: MidiNoteRange]: Boolean read GetIsPressed write SetIsPressed;
+    // The number of notes currently pressed
+    property Notespressed: Integer read GetNotesPressed;
+    // True if the current chord is a recognized one.
+    property RecognizedChord: Boolean read GetRecognizedChord;
+    // Which chord is currently pressed?
+    property ChordString: String read GetChordString;
+    // You must call this procedure before any other, in order to read the chord file.
+    Procedure Initialize(ChordInifile: String);
+
+  end;
+
+implementation
+
+Procedure TChordAnalyzer.Initialize(ChordInifile: String);
+var T:TStringList;
+    C,BaseNotes:NoteKindSet;
+    I,J,K,L:Integer;
+    SRow,SName,SValue,SNote:String;
+begin
+  T := TStringList.Create;
+  try
+    T.LoadFromFile(ChordInifile);
+    For I := 0 to T.Count-1 do begin
+      SRow := T[I];
+      // Valid row?
+      if SRow = '' then Continue;
+      if SRow[1] <> 'C' then Continue;
+      J := Pos('=',SRow);
+      if J = 0 then Continue;
+      // Fetch Name and value parts
+      SName := Trim(Copy(SRow,2,J-2));
+      SValue := UpperCase(Trim(Copy(SRow,J+1,Maxint)));
+
+      C := [];
+      BaseNotes := [];
+      repeat
+        // For every note, find out which note it is
+        J := Pos(',',SValue);
+        if J <> 0 then begin
+          SNote := Trim(Copy(SValue,1,J-1));
+          SValue := Copy(SValue,J+1,Maxint);
+        end
+        else SNote := Trim(SValue);
+
+        if SNote = '' then Continue;
+
+        K := -1;
+        case SNote[1] of
+          'C': K := 0;
+          'D': K := 2;
+          'E': K := 4;
+          'F': K := 5;
+          'G': K := 7;
+          'A': K := 9;
+          'B': K := 11;
+          'H': K := 11; // Nordic standard, H = B
+        end;
+        if K = -1 then Continue; // Maybe an error message of unrecognized note would fit here
+
+        SNote := Trim(Copy(SNote,2,Maxint));
+        while SNote <> '' do begin
+          case SNote[1] of
+            // Handle # and b (which has been uppercase earlier)
+            '#': Inc(K);
+            'B': Dec(K);
+            '/': Include(BaseNotes, K);
+          end;
+
+          SNote := Trim(Copy(SNote,2,Maxint));
+        end;
+
+        Include(C, K);
+      until J = 0; // No more ',' means no more notes in this chord
+
+      For L := 0 to NoteKindSize-1 do
+        if L in BaseNotes then begin
+          J := Length(ChordDefinitions);
+          SetLength(ChordDefinitions, J+1);
+          ChordDefinitions[J].Name := SName;
+          ChordDefinitions[J].BaseRelation := L;
+          if L = 0 then
+            ChordDefinitions[J].C := C
+          else begin
+            // We have to rotate stuff around for chords with different base
+            ChordDefinitions[J].C := [];
+            For K := 0 to NoteKindSize-1 do
+              if K in C then
+                Include(ChordDefinitions[J].C, (K - L + NoteKindSize) mod NoteKindSize);
+          end;
+        end;
+
+    end;
+
+  finally
+    T.Free;
+  end;
+end;
+
+
+function TChordAnalyzer.GetIsPressed(Index: MidiNoteRange): Boolean;
+begin
+  Result := FIsPressed[Index] > 0;
+end;
+
+Procedure TChordAnalyzer.SetIsPressed(Index: MidiNoteRange; Value: Boolean);
+begin
+  if Value then begin
+    if FIsPressed[Index] = 0 then FChanged := True;
+    Inc(FIsPressed[Index]);
+  end
+  else if FIsPressed[Index] > 0 then begin
+    Dec(FIsPressed[Index]);
+    if FIsPressed[Index] = 0 then
+      FChanged := True;
+  end;
+end;
+
+function TChordAnalyzer.GetChordString: String;
+begin
+  if FChanged then DoAnalyze;
+  Result := FChordString;
+end;
+
+Procedure TChordAnalyzer.DoAnalyze;
+var I, LowestNote: Integer;
+    C: NoteKindSet;
+begin
+  FChanged := False;
+
+  FRecognizedChord := False;
+  FNotesPressed := 0;
+
+  LowestNote := -1; // Fool compiler warning
+  For I := High(MidiNoteRange) downto Low(MidiNoteRange) do
+    if (FIsPressed[I] > 0) then begin
+      LowestNote := I;
+      Inc(FNotesPressed);
+    end;
+
+  // Nothing pressed?
+  if FNotesPressed = 0 then begin
+    FChordString := '';
+    Exit;
+  end;
+
+  // One note only?
+  if FNotesPressed = 1 then begin
+    FChordString := NoteNames[LowestNote mod NoteKindSize];
+    Exit;
+  end;
+
+  // Make C in relation to lowest note.
+  C := [];
+  For I := High(MidiNoteRange) downto Low(MidiNoteRange) do
+    if (FIsPressed[I] > 0) then
+      Include(C, (I - LowestNote) mod NoteKindSize);
+
+  For I := 0 to High(ChordDefinitions) do
+    if ChordDefinitions[I].C = C then begin
+      // Chord found!
+      if ChordDefinitions[I].BaseRelation = 0 then
+        FChordString := NoteNames[LowestNote mod NoteKindSize] + ChordDefinitions[I].Name
+      else
+        FChordString := NoteNames[(LowestNote-ChordDefinitions[I].BaseRelation+NoteKindSize) mod NoteKindSize] +
+          ChordDefinitions[I].Name + '/' + NoteNames[LowestNote mod NoteKindSize];
+      FRecognizedChord := True;
+      Exit;
+    end;
+
+  // Unknown chord - list notes
+  FChordString := NoteNames[LowestNote mod NoteKindSize];
+  For I := 1 to NoteKindSize-1 do
+    if I in C then FChordString := FChordString + ', '+NoteNames[(LowestNote+I) mod NoteKindSize];
+end;
+
+
+function TChordAnalyzer.GetNotesPressed: Integer;
+begin
+  if FChanged then DoAnalyze;
+  Result := FNotesPressed;
+end;
+
+function TChordAnalyzer.GetRecognizedChord: Boolean;
+begin
+  if FChanged then DoAnalyze;
+  Result := FRecognizedChord;
+end;
+
+
+end.

@@ -1,0 +1,803 @@
+head	1.5;
+access;
+symbols
+	start:1.1.1.1 originalvendor:1.1.1;
+locks; strict;
+comment	@ * @;
+
+
+1.5
+date	2004.11.08.19.53.50;	author diwic3;	state Exp;
+branches;
+next	1.4;
+
+1.4
+date	2004.11.06.21.22.04;	author diwic3;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	2004.10.20.18.33.40;	author diwic3;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2004.10.19.05.44.42;	author diwic3;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2004.10.19.05.31.45;	author diwic3;	state Exp;
+branches
+	1.1.1.1;
+next	;
+
+1.1.1.1
+date	2004.10.19.05.31.45;	author diwic3;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+1.5
+log
+@Added ability to change colors
+@
+text
+@unit MainU;
+
+{
+This file is part of the program "Ackord", originally written by David Henningsson.
+
+    Ackord is free software; you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation; either version 2 of the License, or
+    (at your option) any later version.
+
+    Ackord is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with Ackord; if not, write to the Free Software
+    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+}
+
+
+
+interface
+
+{$WARN SYMBOL_DEPRECATED OFF}
+
+uses
+  Windows, Messages, SysUtils, Variants, Classes, Graphics, Controls, Forms,
+  Dialogs, Mmsystem, ExtCtrls, StdCtrls, ChordCoreU;
+{
+const
+  NoteKindSize = 12;
+
+type
+  NoteKind = 0..NoteKindSize-1; // 0 = C, 1 = C#, 2 = D etc
+  NoteKindSet = set of NoteKind;
+
+const
+  NoteNames: Array[NoteKind] of String =
+    ('C','C#','D','Eb','E','F','F#','G','Ab','A','Bb','H');
+}
+
+type
+  TMainF = class(TForm)
+    AckordPanel: TPanel;
+    SettingsBtn: TButton;
+    AboutBtn: TButton;
+    procedure FormCreate(Sender: TObject);
+    procedure FormDestroy(Sender: TObject);
+    procedure FormKeyDown(Sender: TObject; var Key: Word;
+      Shift: TShiftState);
+    procedure SettingsBtnClick(Sender: TObject);
+    procedure AckordPanelResize(Sender: TObject);
+    procedure AboutBtnClick(Sender: TObject);
+  private
+    // Window handle that will receive midi message
+    MidiWindow: HWnd;
+    // Handles for midi inputs
+    DevHandles: Array of HMIDIIN;
+    // Handles for midi thru
+    ThruHandles: Array of HMIDIOut;
+    // True if the sustain pedal is currently pressed
+    SustainPressed: Boolean;
+    // This array contains whether a key is pressed or not.
+    // 2 = Pressed, 1 = not pressed but active due to sustain
+    // 0 = not pressed.
+    NoteArray: Array[0..127] of Byte;
+    // This array contains the lowest octave (1-11) that has this key (C - B) pressed. 0 = not pressed
+    NoteOct: Array[Notekind] of Byte;
+    // Which note is the lowest one? (LowestOct = Lowest mod 12)
+    LowestNote, LowestNoteOct: Byte;
+
+    ChordAnalyzer: TChordAnalyzer;
+
+    // Called whenever a midi message is received
+    Procedure MidiWndProc(var Msg: TMessage);
+    // Uses information in NoteArray and NoteOct to construct a chord.
+(*    Function AnalyzeChord: String;
+    // Returns true if Key2 is pressed lower than Key1 (to the left on the keyboard)
+    Function LowerNote(Key1, Key2: Byte): Boolean;
+    // For which key is there an exact match? Returns false if none.
+    Function KeyMatch(Match: NoteKindSet; var Key: Byte): Boolean;
+    // If there is an exact match in NoteOct for the match
+    Function Matches(Key: Byte; Match: NoteKindSet): Boolean;
+    // The distance (irrelevant of octave) between Key and Relatedkey (always positive).
+    Function GetRelation(Key, RelatedKey: Byte): Byte;*)
+    // This one opens all open midi ports. Except for the first time - closemidi should have been called first.
+    Procedure OpenMidi;
+    // This one closes all open midi ports.
+    Procedure CloseMidi;
+
+  public
+  end;
+
+var
+  MainF: TMainF;
+
+implementation
+
+uses SettingsU, AboutU;
+
+{$R *.dfm}
+
+procedure TMainF.FormCreate(Sender: TObject);
+begin
+  // Startup Chordcore component
+  ChordAnalyzer := TChordAnalyzer.Create(self);
+  ChordAnalyzer.Initialize(ExtractFilePath(Application.ExeName)+'chords.txt');
+
+  // Reset Note array
+  Fillchar(NoteArray,sizeof(NoteArray),0);
+
+  SettingsF := TSettingsF.Create(Application);
+  if not SettingsF.LoadFromInifile then
+    if SettingsF.ShowModal <> mrOk then begin
+      // Program canceled during startup
+      Application.Terminate;
+      Application.ShowMainForm := False;
+      Exit;
+    end;
+
+  AckordPanel.Color := SettingsF.Panel1.Color;
+
+  // Open midi window
+  MidiWindow := AllocateHWnd(MidiWndProc);
+
+  OpenMidi;
+end;
+
+procedure TMainF.FormDestroy(Sender: TObject);
+begin
+  CloseMidi;
+  // Close midi window
+  DeallocateHWnd(MidiWindow);
+end;
+
+Procedure TMainF.OpenMidi;
+var I,J,K:Integer;
+begin
+  // Open midi in devices
+  SetLength(DevHandles, SettingsF.MidiInputsLB.Items.Count);
+  For I := 0 to High(DevHandles) do begin
+    DevHandles[I] := 0;
+    if SettingsF.MidiInputsLB.Checked[I] then begin
+      J := midiInOpen(@@DevHandles[I], I, MidiWindow, I, CALLBACK_WINDOW);
+      if J <> MMSYSERR_NOERROR then begin
+        DevHandles[I] := 0;
+        ShowMessage('Cannot open '+SettingsF.MidiInputsLB.Items[I]+'. '#13#10+
+          'The usual cause is that another program currently uses the port.')
+      end
+      else
+        midiInStart(DevHandles[I]); // start recording!
+    end;
+  end;
+
+  // Open midi thru devices
+  SetLength(ThruHandles, SettingsF.MidiThruLB.Items.Count);
+  For I := 0 to High(ThruHandles) do begin
+    ThruHandles[I] := 0;
+    if SettingsF.MidiThruLB.Checked[I] then begin
+      J := midiOutOpen(@@ThruHandles[I], I, 0, 0, CALLBACK_NULL);
+      if J <> MMSYSERR_NOERROR then
+        ShowMessage('Cannot open '+SettingsF.MidiThruLB.Items[I]+'. '#13#10+
+          'The usual cause is that another program currently uses the port.')
+      else
+        // Start midi thru!
+        For K := 0 to High(DevHandles) do
+          if Devhandles[K] <> 0 then
+            midiConnect(DevHandles[K], ThruHandles[I], nil);
+    end;
+  end;
+
+end;
+
+Procedure TMainF.CloseMidi;
+var I,J:Integer;
+begin
+  // Close midi thru devices
+  For I := 0 to High(ThruHandles) do
+    if (ThruHandles[I] <> 0) then begin
+      For J := 0 to High(DevHandles) do
+        if (DevHandles[J] <> 0) then
+          midiDisconnect(DevHandles[J], ThruHandles[I], nil);
+      midiOutClose(ThruHandles[I]);
+    end;  
+
+  // Close midi input devices
+  For I := 0 to High(DevHandles) do
+    if DevHandles[I] <> 0 then begin
+      midiInStop(DevHandles[I]);
+      midiInClose(DevHandles[I]);
+      DevHandles[I] := 0;
+    end;
+end;
+
+
+Procedure TMainF.MidiWndProc(var Msg: TMessage);
+var I,J:Integer;
+begin
+  if Msg.Msg = MM_MIM_DATA then begin
+    // Update notearray
+    if ((Msg.lParam and $F0) = $80) or // note off command
+      (((Msg.lParam and $F0) = $90) and ((Msg.LParam and $FF0000) = 0)) then // note on with volume zero is considered note off.
+    begin
+      if SustainPressed then I := 1
+      else I := 0;
+      J := (Msg.LParam and $7F00) shr 8;
+      if (NoteArray[J] = 0) and (I <> 0) then
+        ChordAnalyzer.IsPressed[J] := True
+      else if (NoteArray[J] <> 0) and (I = 0) then
+        ChordAnalyzer.IsPressed[J] := False;
+      NoteArray[J] := I;
+    end
+
+    else if (Msg.lParam and $F0) = $90 then begin // note on command
+      J := (Msg.LParam and $7F00) shr 8;
+      if NoteArray[J] = 0 then
+        ChordAnalyzer.IsPressed[J] := True;
+      NoteArray[J] := 2;
+    end
+
+    else if (Msg.lParam and $FFF0) = $40B0 then begin // sustain
+      SustainPressed := (Msg.LParam and $FF0000) > 0;
+    end;
+
+
+    // Update noteOct
+    FillChar(NoteOct, Sizeof(NoteOct), 0);
+    For I := High(NoteArray) downto 0 do begin
+
+      if (NoteArray[I] = 1) and (not SustainPressed) then begin
+        NoteArray[I] := 0;
+        ChordAnalyzer.IsPressed[I] := False;
+      end;
+
+      if NoteArray[I] > 0 then begin
+        NoteOct[I mod NoteKindSize] := (I div NoteKindSize) + 1;
+        LowestNote := I;
+        LowestNoteOct := (I mod NoteKindSize);
+      end;
+    end;
+
+    AckordPanel.Caption := ChordAnalyzer.ChordString;
+    if ChordAnalyzer.RecognizedChord then
+      AckordPanel.Font.Color := SettingsF.Panel1.Font.Color
+    else
+      AckordPanel.Font.Color := SettingsF.Panel2.Font.Color;
+
+  end
+  else
+    Msg.Result := DefWindowProc(MidiWindow,Msg.Msg, Msg.WParam, Msg.LParam);
+end;
+(*
+Function TMainF.AnalyzeChord: String;
+var I:Integer;
+    Key,K2,BNote:Byte;
+begin
+  Result := '';
+
+  // No note
+  if KeyMatch([], Key) then Exit;
+
+  // Only one note
+  if KeyMatch([0], Key) then begin
+    AckordPanel.Font.Color := clLime;
+    Result := NoteNames[Key];
+    Exit;
+  end;
+
+  // Two note stuff, everything except the power chord
+  if KeyMatch([0,1], Key) or KeyMatch([0,2], Key) or KeyMatch([0,3], Key) or
+    KeyMatch([0,4], Key) or KeyMatch([0,6], Key) then
+  begin
+    AckordPanel.Font.Color := clLime;
+    Result := NoteNames[LowestNoteOct];
+    For I := 1 to 11 do
+      if NoteOct[(LowestNoteOct + I) mod NoteKindSize] <> 0 then
+        Result := Result + ', '+NoteNames[(LowestNoteOct+I) mod 12];
+
+    Exit;
+  end;
+
+  AckordPanel.Font.Color := clYellow;
+
+
+  // Normal major chords.
+  if KeyMatch([0,4,7], Key) then Result := NoteNames[Key]
+  // Normal minor chords.
+  else if KeyMatch([0,3,7], Key) then Result := NoteNames[Key]+'m'
+  // sus4, or 2
+  else if KeyMatch([0,5,7], Key) then begin
+    BNote := GetRelation(Key, LowestNoteOct);
+    if BNote = 5 then begin
+      Key := LowestNoteOct;
+      Result := NoteNames[Key]+'2'
+    end
+    else
+      Result := NoteNames[Key]+'sus'
+  end
+  // 7th
+  else if KeyMatch([0,4,7,10], Key) then begin
+    BNote := GetRelation(Key, LowestNoteOct);
+    // 7th in base, express as e.g. C/Bb
+    if BNote = 10 then Result := NoteNames[Key]
+    else
+      Result := NoteNames[Key]+'7'
+  end
+  else if KeyMatch([0,4,10], Key) then Result := NoteNames[Key]+'7'
+  // m7th
+  else if KeyMatch([0,3,7,10], Key) then begin
+    BNote := GetRelation(Key, LowestNoteOct);
+    // 7th in base, express as e.g. Cm/Bb
+    if BNote = 10 then Result := NoteNames[Key]+'m'
+    // 3rd in base, express as 6
+    else if BNote = 3 then begin
+      Key := LowestNoteOct;
+      Result := NoteNames[Key]+'6'
+    end
+    else
+      Result := NoteNames[Key]+'m7'
+  end
+  // m b5
+  else if KeyMatch([0,3,6], Key) then Result := NoteNames[Key]+'m b5'
+  // b5
+  else if KeyMatch([0,4,6], Key) then Result := NoteNames[Key]+' b5'
+  // maj7
+  else if KeyMatch([0,4,7,11], Key) then Result := NoteNames[Key]+'maj7'
+  // m maj7
+  else if KeyMatch([0,3,7,11], Key) then Result := NoteNames[Key]+'m maj7'
+  // maj9
+  else if KeyMatch([0,2,4,7,11], Key) then begin
+    BNote := GetRelation(Key, LowestNoteOct);
+    // 9th in base, express as 13 add11
+    if BNote = 2 then begin
+      Key := LowestNoteOct;
+      Result := NoteNames[Key]+'13 add11'
+    end
+    else
+      Result := NoteNames[Key]+'maj9';
+  end
+  // 6 9
+  else if KeyMatch([0,2,4,7,9], Key) then begin
+    BNote := GetRelation(Key, LowestNoteOct);
+    // 6th in base, express as m7 add11
+    if BNote = 9 then begin
+      Key := LowestNoteOct;
+      Result := NoteNames[Key]+'m7 add11'
+    end
+    // 9th in base, express as 11 add5
+    else if BNote = 2 then begin
+      Key := LowestNoteOct;
+      Result := NoteNames[Key]+'11 add5'
+    end
+    else
+      Result := NoteNames[Key]+' 6 9'
+  end
+  // m7b5
+  else if KeyMatch([0,3,6,10], Key) then begin
+    BNote := GetRelation(Key, LowestNoteOct);
+    // 3th in base, express as m6
+    if BNote = 3 then begin
+      Key := LowestNoteOct;
+      Result := NoteNames[Key]+'m6'
+    end
+    else
+      Result := NoteNames[Key]+'m7b5'
+  end
+  // sus4 + 7th
+  else if KeyMatch([0,5,7,10], Key) then Result := NoteNames[Key]+'sus7'
+  // Power chord
+  else if KeyMatch([0,7], Key) then Result := NoteNames[Key]+'no3'
+  // Dim
+  else if KeyMatch([0,3,6,9], Key) then begin
+    // Check which one is lowest
+    K2 := Key;
+    For I := 1 to 3 do
+      if LowerNote(K2, Key+I*3) then K2 := (Key+I*3) mod NoteKindSize;
+    Key := K2;
+    Result := NoteNames[K2]+Char($B0);
+  end
+  // Major #5
+  else if KeyMatch([0,4,8], Key) then begin
+    // Check which one is lowest
+    K2 := Key;
+    For I := 1 to 2 do
+      if LowerNote(K2, Key+I*4) then K2 := (Key+I*4) mod NoteKindSize;
+    Key := K2;
+    Result := NoteNames[K2]+'+';
+  end
+  // add9
+  else if KeyMatch([0,2,4,7], Key) then begin
+    BNote := GetRelation(Key, LowestNoteOct);
+    // 9 in base, express as 11th-chord
+    if BNote = 2 then begin
+      Key := LowestNoteOct;
+      Result := NoteNames[Key]+'11'
+    end
+    else
+      Result := NoteNames[Key]+'add9'
+  end
+  // 9
+  else if (KeyMatch([0,2,4,7,10], Key)) then begin
+    BNote := GetRelation(Key, LowestNoteOct);
+    // 9th in base, express as 11 #5
+    if (BNote = 2) then begin
+      Key := LowestNoteOct;
+      Result := NoteNames[Key]+'11 #5';
+    end
+    // 7th in base, express as add9, e.g. Cadd9/Bb
+    else if (BNote = 10) then
+       Result := NoteNames[Key]+'add9'
+    else
+      Result := NoteNames[Key]+'9';
+  end
+  else if KeyMatch([0,2,4,10], Key) then Result := NoteNames[Key]+'9'
+  // m9
+  else if KeyMatch([0,2,3,7,10], Key) then Result := NoteNames[Key]+'m9'
+  // m11
+  else if KeyMatch([0,2,3,5,7,10], Key) or KeyMatch([0,2,3,5,10], Key) then
+    Result := NoteNames[Key]+'m11'
+  // m 6 9
+  else if (KeyMatch([0,2,3,7,9], Key)) then Result := NoteNames[Key]+'m 6 9'
+  // madd9
+  else if (KeyMatch([0,2,3,7], Key)) then Result := NoteNames[Key]+'m add9'
+  // 7b9
+  else if (KeyMatch([0,1,4,7,10], Key)) or (KeyMatch([0,1,4,10], Key)) then
+    Result := NoteNames[Key]+'7b9'
+  // 7#9
+  else if (KeyMatch([0,3,4,7,10], Key)) or (KeyMatch([0,3,4,10], Key)) then
+    Result := NoteNames[Key]+'7#9'
+  // 7b5
+  else if (KeyMatch([0,4,6,10], Key)) then
+    Result := NoteNames[Key]+'7b5'
+  // 7#5
+  else if (KeyMatch([0,4,8,10], Key)) then begin
+    BNote := GetRelation(Key, LowestNoteOct);
+    // 7 in base, express as 9#11 no3
+    if BNote = 10 then begin
+      Key := LowestNoteOct;
+      Result := NoteNames[Key]+'9#11 no3'
+    end
+    else
+      Result := NoteNames[Key]+'7#5'
+  end
+  // 7#5#9
+  else if (KeyMatch([0,3,4,8,10], Key)) then
+    Result := NoteNames[Key]+'7#5#9'
+  // 7b5#9
+  else if (KeyMatch([0,3,4,6,10], Key)) then
+    Result := NoteNames[Key]+'7b5#9'
+  // 7b5b9
+  else if (KeyMatch([0,1,4,6,10], Key)) then
+    Result := NoteNames[Key]+'7b5b9'
+  // 7#5b9
+  else if (KeyMatch([0,1,4,8,10], Key)) then begin
+    BNote := GetRelation(Key, LowestNoteOct);
+    // 7 in base, express as m9 b5
+    if BNote = 10 then begin
+      Key := LowestNoteOct;
+      Result := NoteNames[Key]+'m9 b5'
+    end
+    else
+      Result := NoteNames[Key]+'7#5b9'
+  end
+  // 13 (with and without both 5th and 9th)
+  else if KeyMatch([0,4,7,9,10], Key) or KeyMatch([0,4,9,10], Key) or
+    KeyMatch([0,2,4,7,9,10], Key) or KeyMatch([0,2,4,9,10], Key) then
+    Result := NoteNames[Key]+'13'
+  // maj13 (with and without both 5th and 9th)
+  else if KeyMatch([0,4,7,9,11], Key) or KeyMatch([0,4,9,11], Key) or
+    KeyMatch([0,2,4,7,9,11], Key) or KeyMatch([0,2,4,9,11], Key) then
+    Result := NoteNames[Key]+'maj 13'
+  // 13#11
+  else if (KeyMatch([0,2,4,6,9,10], Key)) or (KeyMatch([0,2,4,6,7,9,10], Key)) then
+    Result := NoteNames[Key]+'13#11'
+  // 13#11 no3
+  else if (KeyMatch([0,2,6,9,10], Key)) or (KeyMatch([0,2,6,7,9,10], Key)) then
+    Result := NoteNames[Key]+'13#11 no3'
+  // 13#9
+  else if (KeyMatch([0,3,4,9,10], Key)) then
+    Result := NoteNames[Key]+'13#9'
+  // 13b9
+  else if (KeyMatch([0,1,4,9,10], Key)) then
+    Result := NoteNames[Key]+'13b9'
+  // 6 no3
+  else if (KeyMatch([0,7,9], Key)) then begin
+    BNote := GetRelation(Key, LowestNoteOct);
+    // 6 in base, express as m7 no5
+    if BNote = 9 then begin
+      Key := LowestNoteOct;
+      Result := NoteNames[Key]+'m7 no5'
+    end
+    else
+      Result := NoteNames[Key]+'6 no3'
+  end
+  // 7 no3
+  else if (KeyMatch([0,7,10], Key)) then begin
+    BNote := GetRelation(Key, LowestNoteOct);
+    // 5th in base, express as m no5 add11
+    if BNote = 7 then begin
+      Key := LowestNoteOct;
+      Result := NoteNames[Key]+'m no5 add11'
+    end
+    else
+      Result := NoteNames[Key]+'7 no3'
+  end
+  // 9#11
+  else if (KeyMatch([0,2,4,6,10], Key)) then
+    Result := NoteNames[Key]+'9#11'
+  // m9#11
+  else if (KeyMatch([0,2,3,6,10], Key)) then
+    Result := NoteNames[Key]+'m9#11'
+  // add9 no5
+  else if (KeyMatch([0,2,4], Key)) then
+    Result := NoteNames[Key]+'add9 no5'
+  // m add9 no5
+  else if (KeyMatch([0,2,3], Key)) then
+    Result := NoteNames[Key]+'m add9 no5'
+  // m9 no5
+  else if (KeyMatch([0,2,3,10], Key)) then
+    Result := NoteNames[Key]+'m9 no5'
+  // m7 b5 b9
+  else if (KeyMatch([0,1,3,6,10], Key)) then
+    Result := NoteNames[Key]+'m7 b5 b9'
+  // m add11
+  else if (KeyMatch([0,3,5,7], Key)) then
+    Result := NoteNames[Key]+'m add11'
+  // add11
+  else if (KeyMatch([0,4,5,7], Key)) then begin
+    BNote := GetRelation(Key, LowestNoteOct);
+    // 11 in base
+    if BNote = 5 then
+      Result := NoteNames[Key]
+    else
+      Result := NoteNames[Key]+'add11'
+  end
+  // mb5 add11
+  else if (KeyMatch([0,3,5,6], Key)) then
+    Result := NoteNames[Key]+'mb5 add11'
+  // maj7 no5
+  else if (KeyMatch([0,4,11], Key)) then
+    Result := NoteNames[Key]+'maj7 no5'
+  // m maj7 no5
+  else if (KeyMatch([0,3,11], Key)) then
+    Result := NoteNames[Key]+'m maj7 no5'
+  // maj7 no3
+  else if (KeyMatch([0,7,11], Key)) then
+    Result := NoteNames[Key]+'maj7 no3'
+
+  else begin
+    // unknown chord
+    Result := '???';
+    Exit;
+  end;
+
+  // See if we have the right base. If not, add it.
+  if Key <> LowestNoteOct then begin
+    Result := Result + '/'+NoteNames[LowestNoteOct];
+  end;
+
+end;
+
+
+Function TMainF.Matches(Key: Byte; Match: NoteKindSet): Boolean;
+var I:Integer;
+begin
+  For I := 0 to High(NoteKind) do
+    if (I in Match) <> (NoteOct[(Key + I) mod NoteKindSize] <> 0) then
+    begin
+      Result := False;
+      Exit;
+    end;
+  Result := True;
+end;
+
+Function TMainF.KeyMatch(Match: NoteKindSet; var Key: Byte): Boolean;
+var I:Integer;
+begin
+  For I := 0 to High(NoteKind) do
+    if Matches(I, Match) then begin
+      Result := True;
+      Key := I;
+      Exit;
+    end;
+  Result := False;
+end;
+
+Function TMainF.LowerNote(Key1, Key2: Byte): Boolean;
+begin
+  Key1 := Key1 mod NoteKindSize;
+  Key2 := Key2 mod NoteKindSize;
+  if NoteOct[Key2] = 0 then Result := False
+  else if NoteOct[Key1] = 0 then Result := True
+  else if NoteOct[Key1] > NoteOct[Key2] then Result := True
+  else if NoteOct[Key1] < NoteOct[Key2] then Result := False
+  else Result := Key2 < Key1; // Same octave, then we come here
+end;
+
+Function TMainF.GetRelation(Key, RelatedKey: Byte): Byte;
+var I:Integer;
+begin
+  I := (RelatedKey mod NoteKindSize) - (Key mod NoteKindSize);
+  if I < 0 then I := I + NoteKindSize;
+  Assert((I >= 0) and (I < NoteKindSize));
+  Result := I;
+end;
+*)
+
+procedure TMainF.FormKeyDown(Sender: TObject; var Key: Word;
+  Shift: TShiftState);
+begin
+  if Key = VK_ESCAPE then Close;
+end;
+
+procedure TMainF.SettingsBtnClick(Sender: TObject);
+begin
+  if SettingsF.ShowModal = mrOk then begin
+    CloseMidi;
+    OpenMidi;
+    AckordPanel.Color := SettingsF.Panel1.Color;
+  end;
+end;
+
+procedure TMainF.AckordPanelResize(Sender: TObject);
+begin
+  AckordPanel.Font.Height := AckordPanel.Width div 8;
+end;
+
+procedure TMainF.AboutBtnClick(Sender: TObject);
+begin
+  with TAboutF.Create(self) do try
+    ShowModal;
+  finally
+    Free;
+  end;
+end;
+
+end.
+@
+
+
+1.4
+log
+@Chord analyzer 0.3 - uses text file with chord definitions
+@
+text
+@d91 1
+d122 2
+d245 1
+a245 1
+      AckordPanel.Font.Color := clYellow
+d247 1
+a247 1
+      AckordPanel.Font.Color := clLime;
+d620 2
+a621 1
+  end;  
+d635 1
+a635 1
+  end;    
+@
+
+
+1.3
+log
+@Added about dialog (and a few new chords)
+@
+text
+@d29 2
+a30 2
+  Dialogs, Mmsystem, ExtCtrls, StdCtrls;
+
+d41 1
+a41 1
+
+d73 2
+d78 1
+a78 1
+    Function AnalyzeChord: String;
+d86 1
+a86 1
+    Function GetRelation(Key, RelatedKey: Byte): Byte;
+d105 4
+d195 1
+a195 1
+var I:Integer;
+d204 6
+a209 1
+      NoteArray[(Msg.LParam and $7F00) shr 8] := I;
+d212 6
+a217 2
+    else if (Msg.lParam and $F0) = $90 then // note on command
+      NoteArray[(Msg.LParam and $7F00) shr 8] := 2
+d228 1
+a228 1
+      if (NoteArray[I] = 1) and (not SustainPressed) then
+d230 2
+d240 6
+a245 1
+    AckordPanel.Caption := AnalyzeChord;
+d250 1
+a250 1
+
+d604 1
+a604 1
+
+d622 1
+a622 1
+  AckordPanel.Font.Height := AckordPanel.Width div 7;
+@
+
+
+1.2
+log
+@Changed "H" to "B" ackording to international standard
+@
+text
+@d40 1
+a40 1
+    ('C','C#','D','Eb','E','F','F#','G','Ab','A','Bb','B');
+d47 1
+d54 1
+d97 1
+a97 1
+uses SettingsU;
+d306 10
+a315 1
+  else if KeyMatch([0,2,4,7,11], Key) then Result := NoteNames[Key]+'maj9'
+d379 5
+d385 1
+a385 1
+    if (BNote = 10) then
+d497 3
+d603 9
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d40 1
+a40 1
+    ('C','C#','D','Eb','E','F','F#','G','Ab','A','Bb','H');
+@
+
+
+1.1.1.1
+log
+@Initial checkin
+@
+text
+@@

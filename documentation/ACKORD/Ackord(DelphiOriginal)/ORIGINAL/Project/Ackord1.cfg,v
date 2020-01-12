@@ -1,0 +1,75 @@
+head	1.1;
+branch	1.1.1;
+access;
+symbols
+	start:1.1.1.1
+	originalvendor:1.1.1;
+locks; strict;
+comment	@# @;
+
+
+1.1
+date	2004.10.19.04.59.05;	author diwic3;	state Exp;
+branches
+	1.1.1.1;
+next	;
+
+1.1.1.1
+date	2004.10.19.04.59.05;	author diwic3;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@-$A8
+-$B-
+-$C+
+-$D+
+-$E-
+-$F-
+-$G+
+-$H+
+-$I+
+-$J-
+-$K-
+-$L+
+-$M-
+-$N+
+-$O+
+-$P+
+-$Q-
+-$R-
+-$S-
+-$T-
+-$U-
+-$V+
+-$W-
+-$X+
+-$YD
+-$Z1
+-cg
+-AWinTypes=Windows;WinProcs=Windows;DbiTypes=BDE;DbiProcs=BDE;DbiErrs=BDE;
+-H+
+-W+
+-M
+-$M16384,1048576
+-K$00400000
+-LE"c:\program\delphi6pe\Projects\Bpl"
+-LN"c:\program\delphi6pe\Projects\Bpl"
+@
+
+
+1.1.1.1
+log
+@Initial checkin
+@
+text
+@@
